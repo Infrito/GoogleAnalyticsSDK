@@ -2,12 +2,12 @@
 using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
-using System.Text;
 using System.Net;
+using System.Text;
 
 namespace Infrito.GoogleAnalytics
 {
-	public class AnalyticsService
+	public class AnalyticsService : IGoogleAnalytics
 	{
 		private const string BaseAnalyticsUrl = "http://www.google-analytics.com/collect";
 
@@ -151,7 +151,7 @@ namespace Infrito.GoogleAnalytics
 			collection.Add(new KeyValuePair<string, string>("sc", "end"));
 		}
 
-		protected async void CreateRequest(IEnumerable<KeyValuePair<string, string>> parameters)
+		protected void CreateRequest(IEnumerable<KeyValuePair<string, string>> parameters)
 		{
 			if (parameters == null)
 			{
@@ -181,18 +181,30 @@ namespace Infrito.GoogleAnalytics
 			request.Method = "POST";
 			request.CookieContainer = _cookie;
 
-			var requestStream = await request.GetRequestStreamAsync();
-			using (var writer = new StreamWriter(requestStream))
-			{
-				writer.Write(sb.ToString());
-			}
-			try
-			{
-				var response = await request.GetResponseAsync();
-			}
-			catch (Exception)
-			{
-			}
+			request.BeginGetRequestStream(
+				(ar) =>
+					{
+						if (!ar.IsCompleted)
+						{
+							return;
+						}
+
+						var stream = request.EndGetRequestStream(ar);
+						using (stream)
+						using (var writer = new StreamWriter(stream))
+						{
+							writer.Write(sb.ToString());
+						}
+
+						try
+						{
+							request.BeginGetResponse(null, null);
+						}
+						catch (Exception)
+						{
+						}
+					},
+				null);
 		}
 	}
 }
